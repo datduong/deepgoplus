@@ -45,7 +45,7 @@ def main(train_data_file, test_data_file, terms_file,
     go_rels = Ontology('data-cafa/go.obo', with_rels=True)
     terms_df = pd.read_pickle(terms_file)
     terms = terms_df['terms'].values.flatten()
-    terms_dict = {v: i for i, v in enumerate(terms)}
+    # terms_dict = {v: i for i, v in enumerate(terms)}
 
     train_df = pd.read_pickle(train_data_file)
     test_df = pd.read_pickle(test_data_file)
@@ -53,7 +53,16 @@ def main(train_data_file, test_data_file, terms_file,
     annotations = list(map(lambda x: set(x), annotations))
     test_annotations = test_df['annotations'].values
     test_annotations = list(map(lambda x: set(x), test_annotations))
+
+    #### ? notice that @annotations and @test_annotations are used to get IC scores, so we are not allowed to do pre-filtering
     go_rels.calculate_ic(annotations + test_annotations)
+
+
+    go_set = go_rels.get_namespace_terms(NAMESPACES[ont]) #? consider all the MF or CC or BP
+
+    #### ? filter terms to have only mf
+    terms = [t for t in terms if t in go_set]
+    print ('number of terms kept from terms_file {}'.format(len(terms)))
 
     # Print IC values of terms
     ics = {}
@@ -64,8 +73,9 @@ def main(train_data_file, test_data_file, terms_file,
     for i, row in enumerate(train_df.itertuples()):
         prot_index[row.proteins] = i
 
-    
-    # BLAST Similarity (Diamond)
+
+    ####
+    # BLAST Similarity (Diamond) #! we can use same call, we have their output
     diamond_scores = {}
     with open(diamond_scores_file) as f:
         for line in f:
@@ -98,27 +108,33 @@ def main(train_data_file, test_data_file, terms_file,
             for go_id, score in zip(allgos, sim):
                 annots[go_id] = score
         blast_preds.append(annots)
-        
+
+    ####
     # DeepGOPlus
-    go_set = go_rels.get_namespace_terms(NAMESPACES[ont])
+
+    # go_set = go_rels.get_namespace_terms(NAMESPACES[ont]) #? consider all the MF or CC or BP
     go_set.remove(FUNC_DICT[ont])
     labels = test_df['annotations'].values
-    labels = list(map(lambda x: set(filter(lambda y: y in go_set, x)), labels))
-    # print(len(go_set))
+    labels = list(map(lambda x: set(filter(lambda y: y in go_set, x)), labels)) ##! filter true labels by @go_set
+    print("total labels {}".format(len(go_set)))
+
     deep_preds = []
-    alphas = {NAMESPACES['mf']: 0.55, NAMESPACES['bp']: 0.59, NAMESPACES['cc']: 0.46}
-    for i, row in enumerate(test_df.itertuples()):
-        annots_dict = blast_preds[i].copy()
-        for go_id in annots_dict:
-            annots_dict[go_id] *= alphas[go_rels.get_namespace(go_id)]
-        for j, score in enumerate(row.preds):
+    # alphas = {NAMESPACES['mf']: 0.55, NAMESPACES['bp']: 0.59, NAMESPACES['cc']: 0.46}
+    for i, row in enumerate(test_df.itertuples()): #! read in prediction of neural net
+        annots_dict = blast_preds[i].copy() #! copy blast score
+        # for go_id in annots_dict:
+        #     annots_dict[go_id] *= alphas[go_rels.get_namespace(go_id)] #! scale down blast score.
+        for j, score in enumerate(row.preds): #! prediction of @test_df
             go_id = terms[j]
-            score *= 1 - alphas[go_rels.get_namespace(go_id)]
-            if go_id in annots_dict:
-                annots_dict[go_id] += score
-            else:
-                annots_dict[go_id] = score
-        deep_preds.append(annots_dict)
+            if go_id not in go_set: #? faster filter of labels because we don't add ancestor anyway
+                continue
+            # score *= 1 - alphas[go_rels.get_namespace(go_id)] # x *= 1-0.5 --> x = x * (1-0.5)
+            # if go_id in annots_dict: #? should not need this line??
+            #     annots_dict[go_id] += score #! add into blast score
+            # else: #! are we going to see error??
+            annots_dict[go_id] = score #! replace blast score
+        deep_preds.append(annots_dict) #! later on, we use only @deep_preds
+
     # print('AUTHOR DeepGOPlus')
     # print('MODEL 1')
     # print('KEYWORDS sequence alignment.')
@@ -140,7 +156,7 @@ def main(train_data_file, test_data_file, terms_file,
     #             else:
     #                 annots[a_id] = score
     #     deepgo_preds.append(annots)
-    
+
     fmax = 0.0
     tmax = 0.0
     precisions = []
@@ -148,23 +164,37 @@ def main(train_data_file, test_data_file, terms_file,
     smin = 1000000.0
     rus = []
     mis = []
-    for t in range(0, 101):
-        threshold = t / 100.0
+
+    print ('\nontology {}\n'.format(ont))
+
+    for threshold in np.arange(0.005,.4,.01): # np.arange(0.005,1,.01)
+        # threshold = t / 100.0
+        print ('\n')
         preds = []
         for i, row in enumerate(test_df.itertuples()):
             annots = set()
             for go_id, score in deep_preds[i].items():
+                if go_id not in go_set: #? faster filter of labels because we don't add ancestor anyway
+                    continue
                 if score >= threshold:
                     annots.add(go_id)
 
-            new_annots = set()
-            for go_id in annots:
-                new_annots |= go_rels.get_anchestors(go_id)
-            preds.append(new_annots)
-            
+            preds.append(annots)
+
+            ##!! append parent terms or something ??
+            # new_annots = set()
+            # for go_id in annots:
+            #     new_annots |= go_rels.get_anchestors(go_id)
+            # preds.append(new_annots)
+
         # Filter classes
         preds = list(map(lambda x: set(filter(lambda y: y in go_set, x)), preds))
-    
+
+        print ('see 1 prediction')
+        print (preds[10])
+        print ('see 1 label')
+        print (labels[10])
+
         fscore, prec, rec, s, ru, mi, fps, fns = evaluate_annotations(go_rels, labels, preds)
         avg_fp = sum(map(lambda x: len(x), fps)) / len(fps)
         avg_ic = sum(map(lambda x: sum(map(lambda go_id: go_rels.get_ic(go_id), x)), fps)) / len(fps)
@@ -177,7 +207,7 @@ def main(train_data_file, test_data_file, terms_file,
             tmax = threshold
         if smin > s:
             smin = s
-    print(f'Fmax: {fmax:0.3f}, Smin: {smin:0.3f}, threshold: {tmax}')
+    print(f'\nFmax: {fmax:0.3f}, Smin: {smin:0.3f}, threshold: {tmax}')
     precisions = np.array(precisions)
     recalls = np.array(recalls)
     sorted_index = np.argsort(recalls)
@@ -220,10 +250,10 @@ def evaluate_annotations(go, real_annots, pred_annots):
     fps = []
     fns = []
     for i in range(len(real_annots)):
-        if len(real_annots[i]) == 0:
+        if len(real_annots[i]) == 0: ##!! skip if proteins have no labels in this ontology
             continue
         tp = set(real_annots[i]).intersection(set(pred_annots[i]))
-        fp = pred_annots[i] - tp
+        fp = pred_annots[i] - tp #? set operation
         fn = real_annots[i] - tp
         for go_id in fp:
             mi += go.get_ic(go_id)
@@ -250,6 +280,7 @@ def evaluate_annotations(go, real_annots, pred_annots):
     if p + r > 0:
         f = 2 * p * r / (p + r)
     s = math.sqrt(ru * ru + mi * mi)
+    print ('total protein count is {}, total with valid prediction {}'.format(total,p_total))
     return f, p, r, s, ru, mi, fps, fns
 
 

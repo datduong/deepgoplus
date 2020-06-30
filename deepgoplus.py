@@ -96,11 +96,11 @@ def main(go_file, train_data_file, test_data_file, terms_file, model_file,
         logger_file = f'data/training_{params_index}.csv'
         model_file = f'data/model_{params_index}.h5'
     print('Params:', params)
-    
+
     go = Ontology(go_file, with_rels=True)
     terms_df = pd.read_pickle(terms_file)
     terms = terms_df['terms'].values.flatten()
-    
+
     train_df, valid_df = load_data(train_data_file, terms, split)
     test_df = pd.read_pickle(test_data_file)
     terms_dict = {v: i for i, v in enumerate(terms)}
@@ -116,7 +116,7 @@ def main(go_file, train_data_file, test_data_file, terms_file, model_file,
         else:
             logging.info('Creating a new model')
             model = create_model(nb_classes, params)
-            
+
             logging.info("Training data size: %d" % len(train_df))
             logging.info("Validation data size: %d" % len(valid_df))
             checkpointer = ModelCheckpoint(
@@ -133,7 +133,7 @@ def main(go_file, train_data_file, test_data_file, terms_file, model_file,
                                           nb_classes, batch_size)
             valid_generator = DFGenerator(valid_df, terms_dict,
                                           nb_classes, batch_size)
-    
+
             model.summary()
             model.fit_generator(
                 train_generator,
@@ -147,14 +147,14 @@ def main(go_file, train_data_file, test_data_file, terms_file, model_file,
             logging.info('Loading best model')
             model = load_model(model_file)
 
-    
+
         logging.info('Evaluating model')
         loss = model.evaluate_generator(test_generator, steps=test_steps)
         logging.info('Test loss %f' % loss)
         logging.info('Predicting')
         test_generator.reset()
         preds = model.predict_generator(test_generator, steps=test_steps)
-        
+
         # valid_steps = int(math.ceil(len(valid_df) / batch_size))
         # valid_generator = DFGenerator(valid_df, terms_dict,
         #                               nb_classes, batch_size)
@@ -165,7 +165,7 @@ def main(go_file, train_data_file, test_data_file, terms_file, model_file,
         # valid_df['preds'] = list(preds)
         # train_df.to_pickle('data-cafa/train_data_train.pkl')
         # valid_df.to_pickle('data-cafa/train_data_valid.pkl')
-        
+
     test_labels = np.zeros((len(test_df), nb_classes), dtype=np.int32)
     for i, row in enumerate(test_df.itertuples()):
         for go_id in row.annotations:
@@ -176,14 +176,14 @@ def main(go_file, train_data_file, test_data_file, terms_file, model_file,
     logging.info('ROC AUC: %.2f' % (roc_auc,))
     test_df['labels'] = list(test_labels)
     test_df['preds'] = list(preds)
-    
+
     logging.info('Saving predictions')
     test_df.to_pickle(out_file)
 
 
 def create_model(nb_classes, params):
     inp_hot = Input(shape=(MAXLEN, 21), dtype=np.float32)
-    
+
     kernels = range(8, params['max_kernel'], 8)
     nets = []
     for i in range(len(kernels)):
@@ -228,7 +228,7 @@ def load_data(data_file, terms, split):
     valid_df = df.iloc[index[train_n:]]
 
     return train_df, valid_df
-    
+
 
 class DFGenerator(object):
 
@@ -239,7 +239,7 @@ class DFGenerator(object):
         self.batch_size = batch_size
         self.nb_classes = nb_classes
         self.terms_dict = terms_dict
-        
+
     def __next__(self):
         return self.next()
 
@@ -266,6 +266,6 @@ class DFGenerator(object):
             self.reset()
             return self.next()
 
-    
+
 if __name__ == '__main__':
     main()

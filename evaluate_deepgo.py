@@ -3,20 +3,20 @@
 import numpy as np
 import pandas as pd
 import click as ck
-from tensorflow.keras.models import Sequential, Model, load_model
-from tensorflow.keras.layers import (
-    Dense, Dropout, Activation, Input, Reshape,
-    Flatten, BatchNormalization, Embedding,
-    Conv1D, MaxPooling1D, Add, Concatenate)
-from tensorflow.keras.optimizers import Adam, RMSprop, Adadelta, SGD
+# from tensorflow.keras.models import Sequential, Model, load_model
+# from tensorflow.keras.layers import (
+#     Dense, Dropout, Activation, Input, Reshape,
+#     Flatten, BatchNormalization, Embedding,
+#     Conv1D, MaxPooling1D, Add, Concatenate)
+# from tensorflow.keras.optimizers import Adam, RMSprop, Adadelta, SGD
 from sklearn.metrics import classification_report
 from sklearn.metrics.pairwise import cosine_similarity
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+# from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import sys
 from collections import deque
 import time
 import logging
-import tensorflow as tf
+# import tensorflow as tf
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef
 from scipy.spatial import distance
 from scipy import sparse
@@ -58,16 +58,16 @@ def main(train_data_file, preds_file, ont):
                 annots |= go.get_anchestors(go_id)
         test_annotations.append(annots)
     go.calculate_ic(annotations + test_annotations)
-    
+
     prot_index = {}
     for i, row in enumerate(train_df.itertuples()):
         prot_index[row.proteins] = i
 
-    
+
     # DeepGO
     go_set = go.get_namespace_terms(NAMESPACES[ont])
     go_set.remove(FUNC_DICT[ont])
-    
+
     labels = test_annotations
     labels = list(map(lambda x: set(filter(lambda y: y in go_set, x)), labels))
     print(len(go_set))
@@ -76,24 +76,24 @@ def main(train_data_file, preds_file, ont):
     smin = 1000.0
     precisions = []
     recalls = []
-    for t in range(101):
-        threshold = t / 100.0
+    for threshold in np.arange(0.005,1,.01):
+        # threshold = t / 100.0
         preds = []
         for i, row in enumerate(test_df.itertuples()):
             annots = set()
             for j, score in enumerate(row.predictions):
                 if score >= threshold:
                     annots.add(terms[j])
-        
+
             new_annots = set()
             for go_id in annots:
                 new_annots |= go.get_anchestors(go_id)
             preds.append(new_annots)
-        
-    
+
+
         # Filter classes
         preds = list(map(lambda x: set(filter(lambda y: y in go_set, x)), preds))
-        
+
         fscore, prec, rec, s = evaluate_annotations(go, labels, preds)
         precisions.append(prec)
         recalls.append(rec)
