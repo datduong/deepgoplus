@@ -60,8 +60,8 @@ def main(train_data_file, test_data_file, terms_file,
     go_set = go_rels.get_namespace_terms(NAMESPACES[ont]) #? consider all the MF or CC or BP
 
     #### ? filter terms to have only mf ?
-    terms = [t for t in terms if t in go_set]
-    print ('number of terms kept from terms_file {}'.format(len(terms)))
+    # terms = [t for t in terms if t in go_set]
+    # print ('number of terms kept from terms_file {}'.format(len(terms)))
 
     # Print IC values of terms
     ics = {}
@@ -257,10 +257,10 @@ def evaluate_annotations(go, real_annots, pred_annots):
         tp = set(real_annots[i]).intersection(set(pred_annots[i]))
         fp = pred_annots[i] - tp #? set operation
         fn = real_annots[i] - tp
-        # for go_id in fp:
-        #     mi += go.get_ic(go_id)
-        # for go_id in fn:
-        #     ru += go.get_ic(go_id)
+        for go_id in fp:
+            mi += go.get_ic(go_id)
+        for go_id in fn:
+            ru += go.get_ic(go_id)
         fps.append(fp)
         fns.append(fn)
         tpn = len(tp)
@@ -288,8 +288,8 @@ def evaluate_annotations(go, real_annots, pred_annots):
 
 if __name__ == '__main__':
     # #! debug
-    # real_annots = [set([1,2,3]),set([2,3]),set([1])]
-    # pred_annots = [set([2,3,4,5]),set([]),set([4])]
+    # real_annots = [set([1,2,3]),set([2,3]),set([1]),set([0])]
+    # pred_annots = [set([2,3,4,5]),set([]),set([4]),set([])]
     # f, p, r, s, ru, mi, fps, fns = evaluate_annotations(0, real_annots, pred_annots)
     # print (f)
     # exit()
