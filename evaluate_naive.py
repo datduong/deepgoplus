@@ -177,6 +177,7 @@ def evaluate_annotations(go, real_annots, pred_annots):
   if p + r > 0:
     f = 2 * p * r / (p + r)
   s = math.sqrt(ru * ru + mi * mi)
+  print ('total protein count is {}, total with valid prediction {}'.format(total,p_total))
   return f, p, r, s
 
 

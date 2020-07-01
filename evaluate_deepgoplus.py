@@ -57,10 +57,9 @@ def main(train_data_file, test_data_file, terms_file,
     #### ? notice that @annotations and @test_annotations are used to get IC scores, so we are not allowed to do pre-filtering
     go_rels.calculate_ic(annotations + test_annotations)
 
-
     go_set = go_rels.get_namespace_terms(NAMESPACES[ont]) #? consider all the MF or CC or BP
 
-    #### ? filter terms to have only mf
+    #### ? filter terms to have only mf ?
     terms = [t for t in terms if t in go_set]
     print ('number of terms kept from terms_file {}'.format(len(terms)))
 
@@ -121,13 +120,14 @@ def main(train_data_file, test_data_file, terms_file,
     deep_preds = []
     # alphas = {NAMESPACES['mf']: 0.55, NAMESPACES['bp']: 0.59, NAMESPACES['cc']: 0.46}
     for i, row in enumerate(test_df.itertuples()): #! read in prediction of neural net
-        annots_dict = blast_preds[i].copy() #! copy blast score
-        # for go_id in annots_dict:
-        #     annots_dict[go_id] *= alphas[go_rels.get_namespace(go_id)] #! scale down blast score.
+        annots_dict = {}
+        # annots_dict = blast_preds[i].copy() #! copy blast score
+        # for go_id in annots_dict: # * set 0 for all @blast_prediction
+        #     annots_dict[go_id] = 0 # *= alphas[go_rels.get_namespace(go_id)] #! scale down blast score.
         for j, score in enumerate(row.preds): #! prediction of @test_df
             go_id = terms[j]
-            if go_id not in go_set: #? faster filter of labels because we don't add ancestor anyway
-                continue
+            # if go_id not in go_set: #? faster filter of labels because we don't add ancestor anyway
+            #     continue
             # score *= 1 - alphas[go_rels.get_namespace(go_id)] # x *= 1-0.5 --> x = x * (1-0.5)
             # if go_id in annots_dict: #? should not need this line??
             #     annots_dict[go_id] += score #! add into blast score
@@ -167,6 +167,8 @@ def main(train_data_file, test_data_file, terms_file,
 
     print ('\nontology {}\n'.format(ont))
 
+    ####
+
     for threshold in np.arange(0.005,.4,.01): # np.arange(0.005,1,.01)
         # threshold = t / 100.0
         print ('\n')
@@ -190,10 +192,10 @@ def main(train_data_file, test_data_file, terms_file,
         # Filter classes
         preds = list(map(lambda x: set(filter(lambda y: y in go_set, x)), preds))
 
-        print ('see 1 prediction')
-        print (preds[10])
-        print ('see 1 label')
-        print (labels[10])
+        # print ('see 1 prediction')
+        # print (preds[10])
+        # print ('see 1 label')
+        # print (labels[10])
 
         fscore, prec, rec, s, ru, mi, fps, fns = evaluate_annotations(go_rels, labels, preds)
         avg_fp = sum(map(lambda x: len(x), fps)) / len(fps)
@@ -255,10 +257,10 @@ def evaluate_annotations(go, real_annots, pred_annots):
         tp = set(real_annots[i]).intersection(set(pred_annots[i]))
         fp = pred_annots[i] - tp #? set operation
         fn = real_annots[i] - tp
-        for go_id in fp:
-            mi += go.get_ic(go_id)
-        for go_id in fn:
-            ru += go.get_ic(go_id)
+        # for go_id in fp:
+        #     mi += go.get_ic(go_id)
+        # for go_id in fn:
+        #     ru += go.get_ic(go_id)
         fps.append(fp)
         fns.append(fn)
         tpn = len(tp)
@@ -285,4 +287,12 @@ def evaluate_annotations(go, real_annots, pred_annots):
 
 
 if __name__ == '__main__':
+    # #! debug
+    # real_annots = [set([1,2,3]),set([2,3]),set([1])]
+    # pred_annots = [set([2,3,4,5]),set([]),set([4])]
+    # f, p, r, s, ru, mi, fps, fns = evaluate_annotations(0, real_annots, pred_annots)
+    # print (f)
+    # exit()
+    # #!! end 
     main()
+
