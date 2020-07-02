@@ -5,7 +5,7 @@ import pandas as pd
 import click as ck
 from sklearn.metrics import classification_report
 from sklearn.metrics.pairwise import cosine_similarity
-import sys
+import sys,pickle
 from collections import deque
 import time
 import logging
@@ -67,6 +67,8 @@ def main(train_data_file, test_data_file, terms_file,
     ics = {}
     for term in terms:
         ics[term] = go_rels.get_ic(term)
+    ##!! let's save this
+    pickle.dump(ics, open("data-cafa/ICsValueTable.pickle","wb"))
 
     prot_index = {}
     for i, row in enumerate(train_df.itertuples()):
